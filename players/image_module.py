@@ -17,46 +17,47 @@ from LLaVa.mm_utils import (
 import torch
 from peft import PeftModel
 
-class Player_LLaVa():
+class ImageModule():
     def __init__(self, args) -> None:
-      self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
+      # prompts for different baseline types
+        if "llava" in args.model_name.lower():
+            self.image_module = LLava(args)
+      
+
+    def query_image(self, image, observation, query):
+        self.args.query = query
+        text_output = self.image_module.get_image_output(image, self.args)
+        return text_output
+      
+class LLava():
+    def __init__(self, args) -> None:
+        self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
           args.model_path, args.model_base, args.model_name
       )
-      self.args = args
-      if args.lora_path is not None:
-            self.model = PeftModel.from_pretrained(
-                self.model,
-                args.lora_path,
-            )
-      # prompts for different baseline types
-      self.prompts = {
-          "baseline":"This is a picture of a game. Your goal is to output the correct next action of the taxi depending on the picture and the situation. If there is a pixelated character in the picture, you need to drive the taxi to the character. If your taxi is on the same square as the character you need to pick up the character. If there is no character in the picture, you need to drive to the building square. If your taxi is on the building square, you need to drop off the character. Analyse the picture thoroughly and output the correct next action that the the taxi should take in this situation. The allowed actions that the taxi can take are DRIVE LEFT (taxi should move 1 square to the left), DRIVE RIGHT (taxi should move 1 step to the right), DRIVE UP (taxi should move 1 square up), DRIVE DOWN (taxi should move 1 square down), PICKUP (taxi should pickup the character), DROPOFF (taxi should drop off the character. Return only the next action for the taxi and nothing else"
-          }
+        self.args = args
+        if args.lora_path is not None:
+              self.model = PeftModel.from_pretrained(
+                  self.model,
+                  args.lora_path,
+              )
 
-    def act(self, image, observation):
-      if self.args.player_type == "baseline":
-        self.args.query = self.prompts["baseline"]
-        images_tensor = process_images(
+    def get_image_output(self, image, args):
+      # Model
+      disable_torch_init()
+      images_tensor = process_images(
                                           [image],
                                           self.image_processor,
                                           self.model.config
                                       ).to(self.model.device, dtype=torch.float16)
-        text_output = self._get_llava_output(images_tensor, self.args, self.model, self.tokenizer, self.image_processor,)
-        #
-        return text_output
-    def _get_llava_output(self, image_tensor, args, model, tokenizer, image_processor):
-      # Model
-      disable_torch_init()
-
       qs = args.query
       image_token_se = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN
       if IMAGE_PLACEHOLDER in qs:
-          if model.config.mm_use_im_start_end:
+          if self.model.config.mm_use_im_start_end:
               qs = re.sub(IMAGE_PLACEHOLDER, image_token_se, qs)
           else:
               qs = re.sub(IMAGE_PLACEHOLDER, DEFAULT_IMAGE_TOKEN, qs)
       else:
-          if model.config.mm_use_im_start_end:
+          if self.model.config.mm_use_im_start_end:
               qs = image_token_se + "\n" + qs
           else:
               qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
@@ -85,19 +86,19 @@ class Player_LLaVa():
       prompt = conv.get_prompt()
 
       input_ids = (
-          tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+          tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
           .unsqueeze(0)
           .cuda()
       )
 
       stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
       keywords = [stop_str]
-      stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
+      stopping_criteria = KeywordsStoppingCriteria(keywords, self.tokenizer, input_ids)
 
       with torch.inference_mode():
-          output_ids = model.generate(
+          output_ids = self.model.generate(
               input_ids = input_ids,
-              images=image_tensor,
+              images=images_tensor,
               do_sample=True if args.temperature > 0 else False,
               temperature=args.temperature,
               top_p=args.top_p,
@@ -113,7 +114,7 @@ class Player_LLaVa():
           print(
               f"[Warning] {n_diff_input_output} output_ids are not the same as the input_ids"
           )
-      outputs = tokenizer.batch_decode(
+      outputs = self.tokenizer.batch_decode(
           output_ids[:, input_token_len:], skip_special_tokens=True
       )[0]
       outputs = outputs.strip()

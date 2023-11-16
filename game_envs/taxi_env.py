@@ -36,6 +36,7 @@ class Taxi_game():
                         "terminated": terminated,
                         "truncated": truncated,
                         "info": info})
+            observation = new_observation
             rewards.append(reward)
             if terminated or truncated:
                 observation, info = self.env.reset()
@@ -56,7 +57,7 @@ class Taxi_game():
         for key, values in patterns.items():
             for value in values:
                 if value.lower() in response_string.lower():
-                    # get the index of the action
+                    # get the index of the last action mentioned (sometimes LLMs are dumb and output actions with wrong order or casing)
                     index = response_string.lower().index(value.lower())
                     if index > last_action[1]:
                         last_action = (key, index)
