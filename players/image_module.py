@@ -1,6 +1,6 @@
-from LLaVa.model.builder import load_pretrained_model
-from LLaVa.utils import disable_torch_init
-from LLaVa.constants import (
+from LLaVA.llava.model.builder import load_pretrained_model
+from LLaVA.llava.utils import disable_torch_init
+from LLaVA.llava.constants import (
     IMAGE_TOKEN_INDEX,
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_IM_START_TOKEN,
@@ -8,8 +8,8 @@ from LLaVa.constants import (
     IMAGE_PLACEHOLDER,
 )
 import re
-from LLaVa.conversation import conv_templates, SeparatorStyle
-from LLaVa.mm_utils import (
+from LLaVA.llava.conversation import conv_templates, SeparatorStyle
+from LLaVA.llava.mm_utils import (
     tokenizer_image_token,
     KeywordsStoppingCriteria,
     process_images,
@@ -19,6 +19,7 @@ from peft import PeftModel
 
 class ImageModule():
     def __init__(self, args) -> None:
+        self.args = args
       # prompts for different baseline types
         if "llava" in args.model_name.lower():
             self.image_module = LLava(args)

@@ -5,9 +5,9 @@ OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
 
 class LanguageModule():
-    def __init__(self, args) -> None:
+    def __init__(self, language_model_type) -> None:
       # prompts for different baseline types
-        if "openai" in args.language_model:
+        if "openai" in language_model_type:
             self.language_module = OpenAI()
       
 
