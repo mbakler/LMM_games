@@ -11,8 +11,6 @@ class Taxi_game():
 
     def run_episode(self, player, seed):
         observation, info = self.env.reset(seed=seed)
-        observation = self.observation_decoder(observation)
-        print(observation)
         rewards = []
         logs = []
 
@@ -21,25 +19,27 @@ class Taxi_game():
             image_object = Image.fromarray(current_image).convert("RGB")
             # show the image to the player
             plt.imshow(image_object)
-            #response_string = player.act(image_object, observation)
-            #action = self.parse_action(response_string)
-            #retry = 5
-            #while action is None and retry > 0:
-            #  response_string = player.act(image_object, observation)
-            #  action = self.parse_action(response_string)
-            #  retry -= 1
-            #if action is None:
-            #  return None, None
-            action = self.env.action_space.sample()  # agent policy that uses the observation and info
+            response_string = player.act(image_object, observation)
+            x_true, y_true, x_false, y_false = self.evaluate_orientation(observation, response_string, target = "passenger")
+            print(f"Passenger: x_true: {x_true}, y_true: {y_true}, x_false: {x_false}, y_false: {y_false}")
+            action = self.parse_action(response_string)
+            retry = 5
+            while action is None and retry > 0:
+              response_string = player.act(image_object, observation)
+              action = self.parse_action(response_string)
+              retry -= 1
+            if action is None:
+              return logs, rewards
+            #action = self.env.action_space.sample()  # agent policy that uses the observation and info
             new_observation, reward, terminated, truncated, info = self.env.step(action)
-            #logs.append({"observation": observation,
-            #             "image": image_object,
-            #             "response_string": response_string,
-            #            "action": action,
-            #            "reward": reward,
-            #            "terminated": terminated,
-            #            "truncated": truncated,
-            #            "info": info})
+            logs.append({"observation": observation,
+                         "image": image_object,
+                         "response_string": response_string,
+                        "action": action,
+                        "reward": reward,
+                        "terminated": terminated,
+                        "truncated": truncated,
+                        "info": info})
             observation = new_observation
             rewards.append(reward)
             if terminated or truncated:
@@ -73,6 +73,8 @@ class Taxi_game():
         """
         Decode the state to a human readable string
         """
+        colour_rows = [0, 0, 4, 4, -1]
+        colour_cols = [0, 4, 0, 3, -1]
         for taxi_row in range(5):
             for taxi_col in range(5):
                 for pass_loc in range(5):
@@ -81,6 +83,40 @@ class Taxi_game():
                         if state_idx == state:
                             return {"taxi_row": taxi_row,
                                     "taxi_col": taxi_col,
-                                    "pass_loc": pass_loc,
-                                    "dest_idx": dest_idx}
+                                    "pass_row": colour_rows[pass_loc],
+                                    "pass_col": colour_cols[pass_loc],
+                                    "dest_row": colour_rows[dest_idx],
+                                    "dest_col": colour_cols[dest_idx]}
                             
+
+    def evaluate_orientation(self, observation, response_string, target = "passenger"):
+        """
+        Evaluate the true and predicted orientation of the taxi to the passenger and the destination
+        """
+        observation = self.observation_decoder(observation)
+        pass_row = observation["pass_row"]
+        pass_col = observation["pass_col"]
+        taxi_row = observation["taxi_row"]
+        taxi_col = observation["taxi_col"]
+        dest_row = observation["dest_row"]
+        dest_col = observation["dest_col"]
+        if target == "passenger":
+            eval_row = taxi_row
+            eval_col = taxi_col
+        elif target == "destination":
+            eval_row = pass_row
+            eval_col = pass_col
+        
+        if taxi_row < eval_row:
+            row_truth =  "down"
+            row_false = "up"
+        elif taxi_row > eval_row:
+            row_truth =  "up"
+            row_false = "down"
+        if eval_col > pass_col:
+            col_truth = "left"
+            col_false = "right"
+        elif eval_col < pass_col:
+            col_truth = "right"
+            col_false = "left"
+        return col_truth in response_string.lower(), row_truth in response_string.lower(), col_false in response_string.lower(), row_false in response_string.lower()

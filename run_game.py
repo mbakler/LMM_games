@@ -23,13 +23,12 @@ parser.add_argument('-max_new_tokens', help='Max new tokens', default=256, requi
 
 def play_game(game, player):
     seeds = [1, 2, 3, 4, 5]
-    nr_of_plays = 5
+    nr_of_plays = 1
     games = {seed: [] for seed in seeds}
     for seed in seeds:
         for _ in range(nr_of_plays):
-            logs, rewards = game.run_episode(player, seed=seed)
-            games[seed].append({"logs": logs, "rewards": rewards})
-            print(rewards)
+            training_data = game.run_episode(player, seed=seed)
+            games[seed].append(training_data)
     return games
 
 def run_simulation(args):
@@ -38,9 +37,9 @@ def run_simulation(args):
     game = Taxi_game()
     # finally play the game
     player = None
-    games = play_game(game, player)
+    training_data = play_game(game, player)
     # save the games as a pkl object
     import pickle
-    with open("games.pkl", "wb") as f:
-        pickle.dump(games, f)
+    with open("training_data.pkl", "wb") as f:
+        pickle.dump(training_data, f)
 run_simulation("asd")
